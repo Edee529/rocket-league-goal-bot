@@ -26,6 +26,7 @@ const leaderboard = new Map(Object.entries(storedData.leaderboard));
 const recentFunnyGoals: string[] = storedData.recent;
 const announcedMilestones: Record<string, number[]> = storedData.announcedMilestones ?? {};
 const crossbarHitsMap = new Map(Object.entries(storedData.crossbarHits ?? {}));
+const crossbarCooldown = new Map<string, number>();
 
 // Per-session state (doesn't persist)
 const streaks = new Map<string, number>();
@@ -204,6 +205,10 @@ async function main() {
       config.trackedPlayers.every(p => currentPlayers.has(p.toLowerCase()));
     console.log(`[Bot] Crossbar hit by ${playerName} [both: ${bothTrackedPresent}]`);
     if (!bothTrackedPresent) return;
+
+    const lastHit = crossbarCooldown.get(playerName) ?? 0;
+    if (Date.now() - lastHit < 2000) return;
+    crossbarCooldown.set(playerName, Date.now());
 
     crossbarHitsMap.set(playerName, (crossbarHitsMap.get(playerName) ?? 0) + 1);
     console.log(`[Bot] Crossbar hit by ${playerName} (total: ${crossbarHitsMap.get(playerName)})`);
