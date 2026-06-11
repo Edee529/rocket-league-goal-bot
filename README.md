@@ -67,6 +67,10 @@ Goal messages also include interactive buttons for **Leaderboard**, **Streaks**,
 - Persists leaderboard data to `leaderboard.json`
 - Archives seasons to timestamped JSON files
 
+## Credits
+
+Built with heavy use of AI (opencode).
+
 ## Project structure
 
 ```
