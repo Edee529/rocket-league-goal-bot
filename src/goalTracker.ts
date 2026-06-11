@@ -341,3 +341,29 @@ export function buildSessionEmbed(
     )
     .setTimestamp();
 }
+
+// ── Crossbar hits embed ──
+
+export function buildCrossbarEmbed(
+  entries: [string, number][],
+  season: number,
+  totalHits: number,
+): EmbedBuilder {
+  const medals = ["🥇", "🥈", "🥉"];
+  const desc = entries.length === 0
+    ? "No crossbar hits recorded this season."
+    : entries.map(([name, count], i) => {
+        const medal = i < 3 ? medals[i] : `${i + 1}.`;
+        return `${medal} **${name}** — ${count}`;
+      }).join("\n");
+
+  return new EmbedBuilder()
+    .setColor(0xf72585)
+    .setTitle("🏒 CROSSBAR HITS")
+    .setDescription(desc)
+    .addFields(
+      { name: "📊 Season", value: `#${season}`, inline: true },
+      { name: "🎯 Total", value: `${totalHits} hits`, inline: true },
+    )
+    .setTimestamp();
+}

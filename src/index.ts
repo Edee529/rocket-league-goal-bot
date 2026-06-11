@@ -1,11 +1,12 @@
 import { config } from "./config.js";
-import { createRlListener } from "./rlListener.js";
+import { createRlListener, type CrossbarHitCallback } from "./rlListener.js";
 import { createDiscordBot, type BotCallbacks } from "./discord.js";
 import {
   buildGoalEmbed, buildWrongModeEmbed, isFunnySpeed, isNearMiss,
   checkMilestone, isGoalThief, buildMilestoneEmbed, buildStreakEmbed,
   buildThiefEmbed, buildNearMissEmbed, buildLeaderboardEmbed,
   buildCompareEmbed, buildRivalryEmbed, buildSessionEmbed,
+  buildCrossbarEmbed,
 } from "./goalTracker.js";
 import type { GoalEvent } from "./goalTracker.js";
 import { loadData, saveData, archiveSeason, type StoredData } from "./storage.js";
@@ -24,6 +25,7 @@ let storedData: StoredData = loadData();
 const leaderboard = new Map(Object.entries(storedData.leaderboard));
 const recentFunnyGoals: string[] = storedData.recent;
 const announcedMilestones: Record<string, number[]> = storedData.announcedMilestones ?? {};
+const crossbarHitsMap = new Map(Object.entries(storedData.crossbarHits ?? {}));
 
 // Per-session state (doesn't persist)
 const streaks = new Map<string, number>();
@@ -47,6 +49,7 @@ function persist() {
   storedData.leaderboard = Object.fromEntries(leaderboard);
   storedData.recent = recentFunnyGoals;
   storedData.announcedMilestones = announcedMilestones;
+  storedData.crossbarHits = Object.fromEntries(crossbarHitsMap);
   saveData(storedData);
 }
 
@@ -70,6 +73,12 @@ function getRivalryEmbed() {
 
 function getSessionEmbed() {
   return buildSessionEmbed(sessionGoals, sessionBestStreak, sessionNearMissCount, getSessionTime());
+}
+
+function getCrossbarEmbed() {
+  const sorted = [...crossbarHitsMap.entries()].sort((a, b) => b[1] - a[1]);
+  const total = [...crossbarHitsMap.values()].reduce((a, b) => a + b, 0);
+  return buildCrossbarEmbed(sorted, storedData.season, total);
 }
 
 function getStreaksStr(): string {
@@ -101,6 +110,7 @@ function startNewSeason(): string {
   leaderboard.clear();
   recentFunnyGoals.length = 0;
   streaks.clear();
+  crossbarHitsMap.clear();
   nearMiss = null;
   for (const key of Object.keys(announcedMilestones)) delete announcedMilestones[key];
   for (const key of Object.keys(sessionGoals)) delete sessionGoals[key];
@@ -128,6 +138,7 @@ const callbacks: BotCallbacks = {
   getCompareEmbed,
   getRivalryEmbed,
   getSessionEmbed,
+  getCrossbarEmbed,
   getSeasonInfo,
   newSeason: startNewSeason,
 };
@@ -142,6 +153,9 @@ function goalButtons() {
       new ButtonBuilder().setCustomId("btn_compare").setLabel("Compare").setStyle(ButtonStyle.Success).setEmoji("⚔️"),
       new ButtonBuilder().setCustomId("btn_rivalry").setLabel("Rivalry").setStyle(ButtonStyle.Danger).setEmoji("💬"),
       new ButtonBuilder().setCustomId("btn_session").setLabel("Session").setStyle(ButtonStyle.Secondary).setEmoji("📊"),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId("btn_crossbar").setLabel("Crossbar").setStyle(ButtonStyle.Secondary).setEmoji("🏒"),
     ),
   ];
 }
@@ -176,6 +190,24 @@ async function main() {
     callbacks,
     config.guildId || undefined,
   );
+
+  const onCrossbarHit: CrossbarHitCallback = (data) => {
+    const raw = data as any;
+    const playerName = raw.BallLastTouch?.Player?.Name;
+    if (!playerName || typeof playerName !== "string") {
+      console.log("[Bot] CrossbarHit — could not extract player name");
+      return;
+    }
+    if (!isTrackedPlayer({ scorerName: playerName, goalSpeedRaw: 0, goalSpeedLabel: "0" })) return;
+
+    const bothTrackedPresent = config.trackedPlayers.length <= 1 ||
+      config.trackedPlayers.every(p => currentPlayers.has(p.toLowerCase()));
+    console.log(`[Bot] Crossbar hit by ${playerName} [both: ${bothTrackedPresent}]`);
+    if (!bothTrackedPresent) return;
+
+    crossbarHitsMap.set(playerName, (crossbarHitsMap.get(playerName) ?? 0) + 1);
+    console.log(`[Bot] Crossbar hit by ${playerName} (total: ${crossbarHitsMap.get(playerName)})`);
+  };
 
   const rlClient = createRlListener(config.rlPort, async (goal) => {
     if (!isTrackedPlayer(goal)) {
@@ -252,7 +284,7 @@ async function main() {
     await discord.postGoal({ embeds, components: goalButtons() });
     await updateVoiceChannel(discord.client);
     persist();
-  });
+  }, onCrossbarHit);
 
   // ── Track players in match ──
   rlClient.on("UpdateState", (data: UpdateStateData) => {
