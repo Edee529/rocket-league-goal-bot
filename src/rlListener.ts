@@ -1,10 +1,11 @@
-import { RocketLeagueStatsClient, GoalScoredData } from "rocket-league-stats-api";
+import { RocketLeagueStatsClient, type GoalScoredData, type CrossbarHitData } from "rocket-league-stats-api";
 import type { GoalEvent } from "./goalTracker.js";
 import { processGoal } from "./goalTracker.js";
 
 export type GoalCallback = (goal: GoalEvent) => void;
+export type CrossbarHitCallback = (data: CrossbarHitData) => void;
 
-export function createRlListener(port: number, onGoal: GoalCallback): RocketLeagueStatsClient {
+export function createRlListener(port: number, onGoal: GoalCallback, onCrossbarHit?: CrossbarHitCallback): RocketLeagueStatsClient {
   const client = new RocketLeagueStatsClient({
     host: "127.0.0.1",
     port,
@@ -34,6 +35,10 @@ export function createRlListener(port: number, onGoal: GoalCallback): RocketLeag
     );
     onGoal(goal);
   });
+
+  if (onCrossbarHit) {
+    client.on("CrossbarHit", (data: CrossbarHitData) => onCrossbarHit(data));
+  }
 
   return client;
 }

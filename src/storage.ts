@@ -10,10 +10,11 @@ export interface StoredData {
   recent: string[];
   season: number;
   announcedMilestones: Record<string, number[]>;
+  crossbarHits: Record<string, number>;
 }
 
 function defaultData(): StoredData {
-  return { leaderboard: {}, recent: [], season: 1, announcedMilestones: {} };
+  return { leaderboard: {}, recent: [], season: 1, announcedMilestones: {}, crossbarHits: {} };
 }
 
 export function loadData(): StoredData {

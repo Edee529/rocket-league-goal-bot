@@ -30,6 +30,7 @@ export interface BotCallbacks {
   getCompareEmbed: () => EmbedBuilder;
   getRivalryEmbed: () => EmbedBuilder;
   getSessionEmbed: () => EmbedBuilder;
+  getCrossbarEmbed: () => EmbedBuilder;
   getSeasonInfo: () => string;
   newSeason: () => string;
 }
@@ -69,6 +70,12 @@ async function registerCommands(token: string, clientId: string, guildId?: strin
     new SlashCommandBuilder()
       .setName("commands")
       .setDescription("Shows descriptions of all available commands"),
+    new SlashCommandBuilder()
+      .setName("crossbar")
+      .setDescription("Shows the crossbar hits leaderboard"),
+    new SlashCommandBuilder()
+      .setName("clear")
+      .setDescription("⚠️ Deletes ALL messages in the channel (last 14 days only)"),
   ];
 
   try {
@@ -110,6 +117,7 @@ export async function createDiscordBot(
     btn_compare: () => callbacks.getCompareEmbed(),
     btn_rivalry: () => callbacks.getRivalryEmbed(),
     btn_session: () => callbacks.getSessionEmbed(),
+    btn_crossbar: () => callbacks.getCrossbarEmbed(),
   };
 
   client.on("interactionCreate", async (interaction) => {
@@ -137,6 +145,8 @@ export async function createDiscordBot(
         await interaction.reply({ content: callbacks.getSeasonInfo(), ephemeral: true });
       } else if (interaction.commandName === "newseason") {
         await interaction.reply({ content: callbacks.newSeason(), ephemeral: false });
+      } else if (interaction.commandName === "crossbar") {
+        await interaction.reply({ embeds: [callbacks.getCrossbarEmbed()], ephemeral: false });
       } else if (interaction.commandName === "commands") {
         const embed = new EmbedBuilder()
           .setColor(0x5865f2)
@@ -151,11 +161,28 @@ export async function createDiscordBot(
             { name: "/recent", value: "Lists recent 69 kp/h goals scored this session", inline: false },
             { name: "/nearmiss", value: "Shows the closest goal to 69 kp/h this session", inline: false },
             { name: "/streak", value: "Shows current funny goal streaks for each player", inline: false },
+            { name: "/crossbar", value: "Shows the crossbar hits leaderboard for the season", inline: false },
             { name: "/season", value: "Shows current season number and total goals", inline: false },
             { name: "/newseason", value: "Archives current season stats and starts a fresh season", inline: false },
+            { name: "/clear", value: "⚠️ Deletes ALL messages in the channel (last 14 days only)", inline: false },
           )
           .setTimestamp();
         await interaction.reply({ embeds: [embed], ephemeral: true });
+      } else if (interaction.commandName === "clear") {
+        await interaction.deferReply({ ephemeral: true });
+        let deleted = 0;
+        try {
+          let fetched;
+          do {
+            fetched = await (channel as any).bulkDelete(100);
+            deleted += fetched.size;
+          } while (fetched.size === 100);
+        } catch (err: any) {
+          console.error("[Discord] /clear error:", err.message);
+          await interaction.editReply({ content: `Deleted ${deleted} messages, then hit an error: ${err.message}. Older messages may remain.` });
+          return;
+        }
+        await interaction.editReply({ content: `✅ Deleted **${deleted}** messages. Note: only messages from the last 14 days can be deleted.` });
       }
       return;
     }

@@ -51,20 +51,22 @@ A Discord bot that tracks **69 kp/h** goals in Rocket League via the [rocket-lea
 | `/recent` | Last 10 funny goals this session |
 | `/nearmiss` | Closest goal to 69 kp/h this session |
 | `/streak` | Current funny goal streaks per player |
+| `/crossbar` | Season leaderboard for crossbar hits |
 | `/season` | Current season info |
 | `/status` | Bot connection status and season overview |
 | `/newseason` | Archives the current season and starts a fresh one |
 
-Goal messages also include interactive buttons for **Leaderboard**, **Streaks**, **Compare**, **Rivalry**, and **Session** — no need to type commands.
+Goal messages include interactive buttons for **Leaderboard**, **Streaks**, **Compare**, **Rivalry**, **Session**, and **Crossbar** — no need to type commands.
 
 ## How it works
 
 - Connects to Rocket League Stats API over TCP (port `49123` by default)
 - Listens for `GoalScored` events and checks if the speed rounds to **69 kp/h**
-- Posts a styled embed to the configured Discord channel
+- Listens for `CrossbarHit` events and silently counts per tracked player
+- Posts a styled embed to the configured Discord channel for goal events
 - Detects streaks, milestones (10, 25, 50, 75, 100+), goal thieves, and near-misses
-- Tracks both players and requires both to be in the match for goals to count
-- Persists leaderboard data to `leaderboard.json`
+- Tracks both players and requires both to be in the match for goals and crossbar hits to count
+- Persists leaderboard and crossbar data to `leaderboard.json`
 - Archives seasons to timestamped JSON files
 
 ## Credits
