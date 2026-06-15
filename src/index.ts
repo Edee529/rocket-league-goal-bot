@@ -10,7 +10,7 @@ import {
 } from "./goalTracker.js";
 import type { GoalEvent } from "./goalTracker.js";
 import { loadData, saveData, archiveSeason, type StoredData } from "./storage.js";
-import type { UpdateStateData } from "rocket-league-stats-api";
+import type { UpdateStateData, GoalReplayStartData, GoalReplayEndData } from "rocket-league-stats-api";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
 const trackedNames = new Set(config.trackedPlayers.map((p) => p.toLowerCase()));
@@ -32,6 +32,7 @@ const crossbarCooldown = new Map<string, number>();
 const streaks = new Map<string, number>();
 let nearMiss: { player: string; speed: string; diff: number } | null = null;
 let currentPlayers = new Set<string>();
+let inReplay = false;
 
 // Session stats
 const sessionGoals: Record<string, number> = {};
@@ -161,9 +162,9 @@ function goalButtons() {
   ];
 }
 
-// ── Voice channel trophy ──
+// ── Leader channel trophy ──
 
-async function updateVoiceChannel(client: import("discord.js").Client) {
+async function updateLeaderChannel(client: import("discord.js").Client) {
   if (!config.leaderChannelId) return;
   try {
     const channel = await client.channels.fetch(config.leaderChannelId);
@@ -171,6 +172,25 @@ async function updateVoiceChannel(client: import("discord.js").Client) {
       const sorted = [...leaderboard.entries()].sort((a, b) => b[1] - a[1]);
       const top = sorted[0];
       const name = top ? `🏆 ${top[0]}: ${top[1]}` : "🏆 No goals yet";
+      if (channel.name !== name && typeof channel.setName === "function") {
+        await channel.setName(name);
+      }
+    }
+  } catch {
+    // channel not available — silently skip
+  }
+}
+
+// ── Crossbar channel trophy ──
+
+async function updateCrossbarChannel(client: import("discord.js").Client) {
+  if (!config.crossbarChannelId) return;
+  try {
+    const channel = await client.channels.fetch(config.crossbarChannelId);
+    if (channel && "setName" in channel) {
+      const sorted = [...crossbarHitsMap.entries()].sort((a, b) => b[1] - a[1]);
+      const top = sorted[0];
+      const name = top ? `🏒 ${top[0]}: ${top[1]}` : "🏒 No crossbars yet";
       if (channel.name !== name && typeof channel.setName === "function") {
         await channel.setName(name);
       }
@@ -192,7 +212,7 @@ async function main() {
     config.guildId || undefined,
   );
 
-  const onCrossbarHit: CrossbarHitCallback = (data) => {
+  const onCrossbarHit: CrossbarHitCallback = async (data) => {
     const raw = data as any;
     const playerName = raw.BallLastTouch?.Player?.Name;
     if (!playerName || typeof playerName !== "string") {
@@ -200,6 +220,7 @@ async function main() {
       return;
     }
     if (!isTrackedPlayer({ scorerName: playerName, goalSpeedRaw: 0, goalSpeedLabel: "0" })) return;
+    if (inReplay) return;
 
     const bothTrackedPresent = config.trackedPlayers.length <= 1 ||
       config.trackedPlayers.every(p => currentPlayers.has(p.toLowerCase()));
@@ -212,6 +233,8 @@ async function main() {
 
     crossbarHitsMap.set(playerName, (crossbarHitsMap.get(playerName) ?? 0) + 1);
     console.log(`[Bot] Crossbar hit by ${playerName} (total: ${crossbarHitsMap.get(playerName)})`);
+    await updateCrossbarChannel(discord.client);
+    persist();
   };
 
   const rlClient = createRlListener(config.rlPort, async (goal) => {
@@ -219,18 +242,19 @@ async function main() {
       console.log(`[Bot] Ignored goal by ${goal.scorerName} (not tracked)`);
       return;
     }
+    if (inReplay) return;
 
     const bothHere = config.trackedPlayers.every(p => currentPlayers.has(p.toLowerCase()));
-    console.log(`[Bot] Goal by ${goal.scorerName} — ${goal.goalSpeedLabel} kp/h [both: ${bothHere}]`);
+    console.log(`[Bot] Goal by ${goal.scorerName} — ${goal.goalSpeedRaw.toFixed(1)} kp/h [both: ${bothHere}]`);
 
     // ── Near-miss ──
     if (isNearMiss(goal) && !isFunnySpeed(goal)) {
       const diff = Math.abs(goal.goalSpeedRaw - 69);
       if (!nearMiss || diff < nearMiss.diff) {
         nearMiss = { player: goal.scorerName, speed: goal.goalSpeedLabel, diff };
-        sessionNearMissCount++;
-        await discord.postGoal({ embeds: [buildNearMissEmbed(goal.scorerName, goal.goalSpeedLabel)], components: goalButtons() });
       }
+      sessionNearMissCount++;
+      await discord.postGoal({ embeds: [buildNearMissEmbed(goal.scorerName, goal.goalSpeedLabel)], components: goalButtons() });
     }
 
     if (!isFunnySpeed(goal)) {
@@ -287,7 +311,7 @@ async function main() {
     recentFunnyGoals.push(`${goal.scorerName} — ${goal.goalSpeedLabel} kp/h`);
 
     await discord.postGoal({ embeds, components: goalButtons() });
-    await updateVoiceChannel(discord.client);
+    await updateLeaderChannel(discord.client);
     persist();
   }, onCrossbarHit);
 
@@ -296,7 +320,18 @@ async function main() {
     currentPlayers = new Set(data.Players.map((p) => p.Name.toLowerCase()));
   });
 
-  await updateVoiceChannel(discord.client);
+  rlClient.on("GoalReplayStart", () => {
+    inReplay = true;
+    console.log("[Bot] Replay started — ignoring goals and crossbars");
+  });
+
+  rlClient.on("GoalReplayEnd", () => {
+    inReplay = false;
+    console.log("[Bot] Replay ended — resuming tracking");
+  });
+
+  await updateLeaderChannel(discord.client);
+  await updateCrossbarChannel(discord.client);
 
   try {
     await rlClient.connect();

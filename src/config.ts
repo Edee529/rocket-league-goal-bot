@@ -5,6 +5,7 @@ export const config = {
   discordChannelId: process.env.DISCORD_CHANNEL_ID ?? "",
   guildId: process.env.GUILD_ID ?? "",
   leaderChannelId: process.env.LEADER_CHANNEL_ID ?? "",
+  crossbarChannelId: process.env.CROSSBAR_CHANNEL_ID ?? "",
   rlPort: Number(process.env.RL_PORT) || 49123,
   rlHost: "127.0.0.1",
   trackedPlayers: (process.env.TRACKED_PLAYERS ?? "")
