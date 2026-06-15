@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Changed — 2026-06-15
 
 - Normalize storage keys to canonical lowercase keys and add a `displayNames` map to preserve player display names.
 - Use atomic writes for `leaderboard.json` and archived season files to reduce corruption risk.
