@@ -151,7 +151,6 @@ export function buildStreakEmbed(player: string, streak: number): EmbedBuilder {
     .setColor(color)
     .setTitle(title)
     .setDescription(`**${player}** ${intro} ${streak} funny goals in a row!`)
-    .addFields({ name: "\u200b", value: "\u200b" })
     .setTimestamp();
 }
 
@@ -176,7 +175,6 @@ export function buildThiefEmbed(scorer: string, victim: string): EmbedBuilder {
     .setColor(0xe63946)
     .setTitle("👀 GOAL THIEF!")
     .setDescription(roast)
-    .addFields({ name: "\u200b", value: "\u200b" })
     .setTimestamp();
 }
 
@@ -198,7 +196,6 @@ export function buildNearMissEmbed(player: string, speed: string): EmbedBuilder 
     .setColor(0x9c89b8)
     .setTitle("😬 SO CLOSE!")
     .setDescription(msg)
-    .addFields({ name: "\u200b", value: "\u200b" })
     .setTimestamp();
 }
 

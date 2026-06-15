@@ -123,7 +123,7 @@ export async function createDiscordBot(
   client.on("interactionCreate", async (interaction) => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "status") {
-        await interaction.reply({ content: callbacks.getSeasonInfo(), ephemeral: true });
+        await interaction.reply({ content: callbacks.getSeasonInfo(), ephemeral: false });
       } else if (interaction.commandName === "leaderboard") {
         await interaction.reply({ embeds: [callbacks.getLeaderboardEmbed()], ephemeral: false });
       } else if (interaction.commandName === "compare") {
@@ -134,15 +134,15 @@ export async function createDiscordBot(
         await interaction.reply({ embeds: [callbacks.getSessionEmbed()], ephemeral: false });
       } else if (interaction.commandName === "streak") {
         const s = callbacks.getStreaks();
-        await interaction.reply({ content: s || "No active streaks.", ephemeral: true });
+        await interaction.reply({ content: s || "No active streaks.", ephemeral: false });
       } else if (interaction.commandName === "recent") {
         const r = callbacks.getRecent();
-        await interaction.reply({ content: r || "No 69 kp/h goals yet this session.", ephemeral: true });
+        await interaction.reply({ content: r || "No 69 kp/h goals yet this session.", ephemeral: false });
       } else if (interaction.commandName === "nearmiss") {
         const nm = callbacks.getNearMiss();
-        await interaction.reply({ content: nm || "No near-misses yet this session.", ephemeral: true });
+        await interaction.reply({ content: nm || "No near-misses yet this session.", ephemeral: false });
       } else if (interaction.commandName === "season") {
-        await interaction.reply({ content: callbacks.getSeasonInfo(), ephemeral: true });
+        await interaction.reply({ content: callbacks.getSeasonInfo(), ephemeral: false });
       } else if (interaction.commandName === "newseason") {
         await interaction.reply({ content: callbacks.newSeason(), ephemeral: false });
       } else if (interaction.commandName === "crossbar") {
@@ -167,9 +167,9 @@ export async function createDiscordBot(
             { name: "/clear", value: "⚠️ Deletes ALL messages in the channel (last 14 days only)", inline: false },
           )
           .setTimestamp();
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], ephemeral: false });
       } else if (interaction.commandName === "clear") {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ ephemeral: false });
         let deleted = 0;
         try {
           let fetched;
@@ -190,14 +190,14 @@ export async function createDiscordBot(
     if (interaction.isButton()) {
       const action = buttonActions[interaction.customId];
       if (!action) {
-        await interaction.reply({ content: "Unknown button.", ephemeral: true });
+        await interaction.reply({ content: "Unknown button.", ephemeral: false });
         return;
       }
       const result = action();
       if (result instanceof EmbedBuilder) {
-        await interaction.reply({ embeds: [result], ephemeral: true });
+        await interaction.reply({ embeds: [result], ephemeral: false });
       } else {
-        await interaction.reply({ content: result || "No data.", ephemeral: true });
+        await interaction.reply({ content: result || "No data.", ephemeral: false });
       }
     }
   });
