@@ -4,7 +4,9 @@ import { isFunnySpeed, isNearMiss, checkMilestone, isGoalThief, processGoal } fr
 describe('goalTracker', () => {
   it('recognizes funny speeds (rounded to 69)', () => {
     expect(isFunnySpeed(processGoal('Alice', 68.6))).toBe(true);
-    expect(isFunnySpeed(processGoal('Bob', 69.4))).toBe(false);
+    // 69.4 rounds to 69 and should be considered funny; 69.6 rounds to 70 and should not
+    expect(isFunnySpeed(processGoal('Bob', 69.4))).toBe(true);
+    expect(isFunnySpeed(processGoal('Carl', 69.6))).toBe(false);
   });
 
   it('detects near misses (within 1 kp/h but not exact)', () => {
