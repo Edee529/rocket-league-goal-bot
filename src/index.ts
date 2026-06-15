@@ -22,11 +22,20 @@ function isTrackedPlayer(goal: GoalEvent): boolean {
 
 let storedData: StoredData = loadData();
 
-const leaderboard = new Map(Object.entries(storedData.leaderboard));
+const leaderboard = new Map<string, number>(Object.entries(storedData.leaderboard));
 const recentFunnyGoals: string[] = storedData.recent;
 const announcedMilestones: Record<string, number[]> = storedData.announcedMilestones ?? {};
-const crossbarHitsMap = new Map(Object.entries(storedData.crossbarHits ?? {}));
+const crossbarHitsMap = new Map<string, number>(Object.entries(storedData.crossbarHits ?? {}));
 const crossbarCooldown = new Map<string, number>();
+const displayNames: Record<string, string> = storedData.displayNames ?? {};
+
+function canonical(name: string): string {
+  return name.toLowerCase();
+}
+
+function displayForKey(key: string): string {
+  return displayNames[key] ?? key;
+}
 
 // Per-session state (doesn't persist)
 const streaks = new Map<string, number>();
@@ -52,6 +61,7 @@ function persist() {
   storedData.recent = recentFunnyGoals;
   storedData.announcedMilestones = announcedMilestones;
   storedData.crossbarHits = Object.fromEntries(crossbarHitsMap);
+  storedData.displayNames = displayNames;
   saveData(storedData);
 }
 
@@ -60,27 +70,41 @@ function persist() {
 function getLeaderboardEmbed() {
   const sorted = [...leaderboard.entries()].sort((a, b) => b[1] - a[1]);
   const total = [...leaderboard.values()].reduce((a, b) => a + b, 0);
-  return buildLeaderboardEmbed(sorted, storedData.season, total);
+  const displayEntries = sorted.map(([k, v]) => [displayForKey(k), v] as [string, number]);
+  return buildLeaderboardEmbed(displayEntries, storedData.season, total);
 }
 
 function getCompareEmbed() {
   const sorted = [...leaderboard.entries()].sort((a, b) => b[1] - a[1]);
-  return buildCompareEmbed(sorted, Object.fromEntries(streaks), announcedMilestones);
+  const displayEntries = sorted.map(([k, v]) => [displayForKey(k), v] as [string, number]);
+  const streaksRecord = Object.fromEntries([...streaks.entries()].map(([k, v]) => [displayForKey(k), v]));
+  const announcedForDisplay: Record<string, number[]> = Object.fromEntries(
+    Object.entries(announcedMilestones).map(([k, v]) => [displayForKey(k), v]),
+  );
+  return buildCompareEmbed(displayEntries, streaksRecord, announcedForDisplay);
 }
 
 function getRivalryEmbed() {
   const sorted = [...leaderboard.entries()].sort((a, b) => b[1] - a[1]);
-  return buildRivalryEmbed(sorted, storedData.season);
+  const displayEntries = sorted.map(([k, v]) => [displayForKey(k), v] as [string, number]);
+  return buildRivalryEmbed(displayEntries, storedData.season);
 }
 
 function getSessionEmbed() {
-  return buildSessionEmbed(sessionGoals, sessionBestStreak, sessionNearMissCount, getSessionTime());
+  const displaySessionGoals: Record<string, number> = Object.fromEntries(
+    Object.entries(sessionGoals).map(([k, v]) => [displayForKey(k), v]),
+  );
+  const displayBestStreak: Record<string, number> = Object.fromEntries(
+    Object.entries(sessionBestStreak).map(([k, v]) => [displayForKey(k), v]),
+  );
+  return buildSessionEmbed(displaySessionGoals, displayBestStreak, sessionNearMissCount, getSessionTime());
 }
 
 function getCrossbarEmbed() {
   const sorted = [...crossbarHitsMap.entries()].sort((a, b) => b[1] - a[1]);
+  const displayEntries = sorted.map(([k, v]) => [displayForKey(k), v] as [string, number]);
   const total = [...crossbarHitsMap.values()].reduce((a, b) => a + b, 0);
-  return buildCrossbarEmbed(sorted, storedData.season, total);
+  return buildCrossbarEmbed(displayEntries, storedData.season, total);
 }
 
 function getStreaksStr(): string {
@@ -88,7 +112,7 @@ function getStreaksStr(): string {
   return [...streaks.entries()]
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
-    .map(([name, count]) => `${name}: ${count} in a row`)
+    .map(([name, count]) => `${displayForKey(name)}: ${count} in a row`)
     .join("\n");
 }
 
@@ -98,7 +122,7 @@ function getSeasonInfo(): string {
   if (sorted.length > 0) {
     sorted.forEach(([name, count], i) => {
       const medal = i === 0 ? "👑" : "";
-      lines.push(`${medal} ${name}: ${count}`);
+      lines.push(`${medal} ${displayForKey(name)}: ${count}`);
     });
   } else {
     config.trackedPlayers.forEach((p) => lines.push(`${p}: 0`));
@@ -171,7 +195,7 @@ async function updateLeaderChannel(client: import("discord.js").Client) {
     if (channel && "setName" in channel) {
       const sorted = [...leaderboard.entries()].sort((a, b) => b[1] - a[1]);
       const top = sorted[0];
-      const name = top ? `🏆 ${top[0]}: ${top[1]}` : "🏆 No goals yet";
+      const name = top ? `🏆 ${displayForKey(top[0])}: ${top[1]}` : "🏆 No goals yet";
       if (channel.name !== name && typeof channel.setName === "function") {
         await channel.setName(name);
       }
@@ -190,7 +214,7 @@ async function updateCrossbarChannel(client: import("discord.js").Client) {
     if (channel && "setName" in channel) {
       const sorted = [...crossbarHitsMap.entries()].sort((a, b) => b[1] - a[1]);
       const top = sorted[0];
-      const name = top ? `🏒 ${top[0]}: ${top[1]}` : "🏒 No crossbars yet";
+      const name = top ? `🏒 ${displayForKey(top[0])}: ${top[1]}` : "🏒 No crossbars yet";
       if (channel.name !== name && typeof channel.setName === "function") {
         await channel.setName(name);
       }
@@ -227,12 +251,14 @@ async function main() {
     console.log(`[Bot] Crossbar hit by ${playerName} [both: ${bothTrackedPresent}]`);
     if (!bothTrackedPresent) return;
 
-    const lastHit = crossbarCooldown.get(playerName) ?? 0;
+    const key = canonical(playerName);
+    const lastHit = crossbarCooldown.get(key) ?? 0;
     if (Date.now() - lastHit < 2000) return;
-    crossbarCooldown.set(playerName, Date.now());
+    crossbarCooldown.set(key, Date.now());
 
-    crossbarHitsMap.set(playerName, (crossbarHitsMap.get(playerName) ?? 0) + 1);
-    console.log(`[Bot] Crossbar hit by ${playerName} (total: ${crossbarHitsMap.get(playerName)})`);
+    crossbarHitsMap.set(key, (crossbarHitsMap.get(key) ?? 0) + 1);
+    displayNames[key] = playerName;
+    console.log(`[Bot] Crossbar hit by ${playerName} (total: ${crossbarHitsMap.get(key)})`);
     await updateCrossbarChannel(discord.client);
     persist();
   };
@@ -258,7 +284,7 @@ async function main() {
     }
 
     if (!isFunnySpeed(goal)) {
-      streaks.set(goal.scorerName, 0);
+      streaks.set(canonical(goal.scorerName), 0);
       return;
     }
 
@@ -272,20 +298,22 @@ async function main() {
     }
 
     // ── Count the goal ──
-    const current = leaderboard.get(goal.scorerName) ?? 0;
-    leaderboard.set(goal.scorerName, current + 1);
+    const key = canonical(goal.scorerName);
+    const current = leaderboard.get(key) ?? 0;
+    leaderboard.set(key, current + 1);
+    displayNames[key] = goal.scorerName;
 
-    sessionGoals[goal.scorerName] = (sessionGoals[goal.scorerName] ?? 0) + 1;
+    sessionGoals[key] = (sessionGoals[key] ?? 0) + 1;
 
-    const streak = (streaks.get(goal.scorerName) ?? 0) + 1;
-    streaks.set(goal.scorerName, streak);
+    const streak = (streaks.get(key) ?? 0) + 1;
+    streaks.set(key, streak);
 
-    if (streak > (sessionBestStreak[goal.scorerName] ?? 0)) {
-      sessionBestStreak[goal.scorerName] = streak;
+    if (streak > (sessionBestStreak[key] ?? 0)) {
+      sessionBestStreak[key] = streak;
     }
 
     for (const [player] of streaks) {
-      if (player !== goal.scorerName) streaks.set(player, 0);
+      if (player !== key) streaks.set(player, 0);
     }
 
     // ── Goal thief ──
@@ -294,12 +322,12 @@ async function main() {
     }
 
     // ── Milestone ──
-    const playerMilestones = announcedMilestones[goal.scorerName] ?? [];
-    const milestone = checkMilestone(leaderboard.get(goal.scorerName)!);
+    const playerMilestones = announcedMilestones[key] ?? [];
+    const milestone = checkMilestone(leaderboard.get(key)!);
     if (milestone && !playerMilestones.includes(milestone)) {
       playerMilestones.push(milestone);
-      announcedMilestones[goal.scorerName] = playerMilestones;
-      await discord.postGoal({ embeds: [buildMilestoneEmbed(goal.scorerName, milestone, leaderboard.get(goal.scorerName)!)], components: goalButtons() });
+      announcedMilestones[key] = playerMilestones;
+      await discord.postGoal({ embeds: [buildMilestoneEmbed(displayForKey(key), milestone, leaderboard.get(key)!)], components: goalButtons() });
     }
 
     // ── Post goal with buttons ──
@@ -309,7 +337,10 @@ async function main() {
     }
 
     recentFunnyGoals.push(`${goal.scorerName} — ${goal.goalSpeedLabel} kp/h`);
-
+    // keep recent list bounded to avoid unbounded growth
+    if (recentFunnyGoals.length > 200) {
+      recentFunnyGoals.splice(0, recentFunnyGoals.length - 200);
+    }
     await discord.postGoal({ embeds, components: goalButtons() });
     await updateLeaderChannel(discord.client);
     persist();

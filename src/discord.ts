@@ -8,8 +8,9 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  PermissionFlagsBits,
   Events,
-  type TextChannel,
+  
 } from "discord.js";
 
 let restInstance: REST | null = null;
@@ -169,6 +170,10 @@ export async function createDiscordBot(
           .setTimestamp();
         await interaction.reply({ embeds: [embed], ephemeral: false });
       } else if (interaction.commandName === "clear") {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+          await interaction.reply({ content: "You need the Manage Messages permission to use this command.", ephemeral: true });
+          return;
+        }
         await interaction.deferReply({ ephemeral: false });
         let deleted = 0;
         try {
