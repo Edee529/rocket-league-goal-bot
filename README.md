@@ -88,3 +88,28 @@ src/
   rlListener.ts    — Rocket League Stats API connection
   storage.ts       — JSON file persistence and season archiving
 ```
+
+## Development & Testing
+
+- Run the development bot with hot reload: `npm run dev`
+- Build for production: `npm run build` and start with `npm start`
+- Typecheck: `npm run typecheck`
+- Unit tests: `npm test` (uses Vitest). The repository includes tests under `test/` that cover `goalTracker` logic, storage normalization, embed builders, and basic crossbar/replay handling.
+
+CI: GitHub Actions runs `npm ci`, `npm run typecheck`, and `npm test` for push and pull requests. You can also trigger the workflow manually via the Actions UI.
+
+## Data & Storage Notes
+
+- Persistent data is stored in `leaderboard.json` in the repository root (managed by `src/storage.ts`).
+- Keys are stored canonically (lowercased) to avoid duplicate entries when player display names change; a `displayNames` map preserves the preferred display name for UI output.
+- Writes to `leaderboard.json` and season archives are atomic (written to a temp file and renamed) to reduce the risk of corruption on crashes.
+- The in-memory `recent` list is capped (currently 200 entries) to avoid unbounded growth and large persisted files.
+
+## Important Behaviour Changes
+
+- The `/clear` command now requires the `Manage Messages` permission; this prevents accidental bulk deletion.
+- The bot rounds speeds to detect the funny number (69) — see `src/goalTracker.ts` for the exact detection logic.
+
+## CHANGELOG
+
+See [CHANGELOG.md](CHANGELOG.md) for recent notable changes.
